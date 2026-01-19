@@ -1,0 +1,77 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+    
+    - name: Setup Java
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'zulu'
+        java-version: '17'
+    
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v2
+    
+    - name: Install React Native CLI
+      run: npm install -g react-native-cli
+    
+    - name: Get app name from app.json
+      id: app_info
+      run: |
+        APP_NAME=$(node -p "require('./app.json').name")
+        echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
+    
+    - name: Initialize React Native project
+      run: |
+        # Create temp directory for initialization
+        mkdir -p temp_init
+        cd temp_init
+        
+        # Initialize new RN project
+        npx react-native@0.72.0 init TempApp --version 0.72.0
+        
+        # Copy android and ios folders to root
+        cp -r TempApp/android ../
+        cp -r TempApp/ios ../
+        
+        # Clean up
+        cd ..
+        rm -rf temp_init
+    
+    - name: Copy our custom files
+      run: |
+        # Our custom App.js, package.json, etc. are already in root
+        # Just need to update the android app name if needed
+        echo "Custom files already in place"
+    
+    - name: Install dependencies
+      run: npm install
+    
+    - name: Make gradlew executable
+      run: chmod +x android/gradlew
+    
+    - name: Build APK
+      run: |
+        cd android
+        ./gradlew assembleDebug --no-daemon
+    
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-debug
+        path: android/app/build/outputs/apk/debug/app-debug.apk
